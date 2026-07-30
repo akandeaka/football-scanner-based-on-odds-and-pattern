@@ -3,28 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jay Soccer Scanner - Auto Ticket Generator</title>
+    <title>Jay Soccer Auto-Scanner</title>
     <style>
         body { font-family: 'Courier New', monospace; background-color: #0d1117; color: #c9d1d9; padding: 15px; margin: 0; }
         h1 { color: #58a6ff; text-align: center; margin-bottom: 5px; font-size: 1.5em; }
         .subtitle { text-align: center; color: #8b949e; margin-bottom: 20px; font-size: 0.85em; }
         .container { max-width: 800px; margin: 0 auto; background: #161b22; padding: 15px; border-radius: 8px; border: 1px solid #30363d; }
         
-        .drop-zone { border: 2px dashed #30363d; border-radius: 8px; padding: 30px 15px; text-align: center; cursor: pointer; transition: all 0.3s ease; margin-bottom: 15px; background: #0d1117; }
-        .drop-zone:hover, .drop-zone.dragover { border-color: #58a6ff; background: #161b22; color: #58a6ff; }
-        .drop-zone p { margin: 5px 0; }
-        .file-info { color: #3fb950; font-weight: bold; margin-top: 10px; display: none; font-size: 0.9em;}
-
+        .status { text-align: center; padding: 10px; background: #0d1117; border-radius: 6px; margin-bottom: 15px; color: #58a6ff; font-weight: bold; display: none;}
+        
         .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
         .control-group { flex: 1; min-width: 120px; }
         label { display: block; margin-bottom: 3px; color: #8b949e; font-size: 0.8em; }
-        select, button { width: 100%; padding: 8px; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; font-family: inherit; box-sizing: border-box; font-size: 0.9em;}
+        select, button { width: 100%; padding: 10px; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; font-family: inherit; box-sizing: border-box; font-size: 0.9em;}
         button { background: #238636; color: white; font-weight: bold; cursor: pointer; border: none; margin-top: 10px;}
         button:hover { background: #2ea043; }
         .btn-secondary { background: #30363d; }
-        .btn-secondary:hover { background: #484f58; }
 
-        /* TICKET STYLES */
         .tickets-container { margin-bottom: 25px; }
         .ticket { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; margin-bottom: 15px; }
         .ticket-header { padding: 10px 15px; font-weight: bold; color: white; font-size: 1em; display: flex; justify-content: space-between; }
@@ -53,16 +48,10 @@
 <body>
 
 <div class="container">
-    <h1>⚽ JAY SOCCER AUTO-SCANNER</h1>
-    <p class="subtitle">Upload your fixtures file to instantly generate 2.00, 5.00 & 8.00 Odds Tickets</p>
+    <h1>⚽ JAY SOCCER CLOUD-SCANNER</h1>
+    <p class="subtitle">Auto-reading fixtures.txt from your GitHub Repository</p>
 
-    <div class="drop-zone" id="dropZone">
-        <p style="font-size: 1.5em;">📂</p>
-        <p><strong>Tap to Upload or Drag & Drop File</strong></p>
-        <p style="font-size: 0.8em; color: #8b949e;">(.txt or .csv from Excel/Soccer24)</p>
-        <input type="file" id="fileInput" accept=".txt,.csv" style="display: none;">
-        <div class="file-info" id="fileInfo"></div>
-    </div>
+    <div class="status" id="status"></div>
 
     <div class="controls">
         <div class="control-group">
@@ -83,50 +72,42 @@
         </div>
     </div>
 
-    <button class="btn-secondary" onclick="downloadTemplate()">📥 Download CSV Template</button>
-    <button class="btn-secondary" onclick="clearAll()">🗑️ Clear</button>
+    <button onclick="loadFromGitHub()">🔄 RE-SCAN GITHUB FILE</button>
 
     <div id="output" class="output"></div>
 </div>
 
 <script>
 // ==========================================
-// FILE HANDLING
+// 1. AUTO-FETCH FROM GITHUB
 // ==========================================
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-const fileInfo = document.getElementById('fileInfo');
-
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', (e) => {
-    e.preventDefault(); dropZone.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
-
-function handleFile(file) {
-    fileInfo.style.display = 'block';
-    fileInfo.textContent = `📄 Reading: ${file.name}...`;
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        fileInfo.textContent = `✅ Loaded: ${file.name}`;
-        processFileData(e.target.result);
-    };
-    reader.readAsText(file);
+async function loadFromGitHub() {
+    const statusEl = document.getElementById('status');
+    statusEl.style.display = 'block';
+    statusEl.style.color = '#58a6ff';
+    statusEl.textContent = "⏳ Fetching fixtures.txt from GitHub...";
+    
+    try {
+        // The ?t=Date.now() prevents your browser from loading an old cached version
+        const response = await fetch('./fixtures.txt?t=' + Date.now());
+        if (!response.ok) throw new Error("File not found! Please create 'fixtures.txt' in your GitHub repo.");
+        
+        const text = await response.text();
+        if (!text.trim()) throw new Error("The file is empty. Paste your matches into fixtures.txt on GitHub.");
+        
+        statusEl.textContent = "✅ File loaded! Scanning matches...";
+        processFileData(text);
+    } catch (error) {
+        statusEl.textContent = "❌ " + error.message;
+        statusEl.style.color = "#f85149";
+    }
 }
 
-function downloadTemplate() {
-    const csv = "Home Team,Away Team,Home Odd,Draw Odd,Away Odd\nArsenal,Chelsea,1.80,3.50,4.50\nBarcelona,Real Madrid,1.19,7.50,12.00";
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a = document.createElement('a'); a.href = window.URL.createObjectURL(blob); a.download = 'jay_template.csv'; a.click();
-}
-
-function clearAll() { document.getElementById('output').innerHTML = ''; fileInfo.style.display = 'none'; fileInput.value = ''; }
+// Auto-run when the page opens
+window.onload = () => { loadFromGitHub(); };
 
 // ==========================================
-// ESTIMATED ODDS CALCULATOR
+// 2. ESTIMATED ODDS CALCULATOR
 // ==========================================
 function getBetOdd(rec, hOdd, xOdd, aOdd) {
     if (rec.includes("Straight Home Win")) return hOdd;
@@ -147,7 +128,7 @@ function getBetOdd(rec, hOdd, xOdd, aOdd) {
 }
 
 // ==========================================
-// SCANNER & TICKET GENERATOR
+// 3. SCANNER & TICKET GENERATOR
 // ==========================================
 function parseLine(line) {
     let parts = line.split(',').map(p => p.trim());
@@ -187,7 +168,7 @@ function scanMatch(home, away, hOdd, xOdd, aOdd, seasonPhase, leagueType) {
 }
 
 function generateTickets(matches) {
-    matches.sort((a, b) => a.betOdd - b.betOdd); // Safest first
+    matches.sort((a, b) => a.betOdd - b.betOdd); 
     let t2 = { m: [], o: 1.00, t: 2.00 };
     let t5 = { m: [], o: 1.00, t: 5.00 };
     let t8 = { m: [], o: 1.00, t: 8.00 };
@@ -226,7 +207,6 @@ function processFileData(text) {
         }
     });
 
-    // Build Tickets HTML
     let ticketsHTML = '';
     if (allGreenlight.length > 0) {
         const tickets = generateTickets(allGreenlight);
@@ -241,14 +221,14 @@ function processFileData(text) {
         ticketsHTML += renderTicket(tickets.t2, 'ticket-2', '🟢 SAFE TICKET (Target ~2.00)');
         ticketsHTML += renderTicket(tickets.t5, 'ticket-5', '🔵 MEDIUM TICKET (Target ~5.00)');
         ticketsHTML += renderTicket(tickets.t8, 'ticket-8', '🟣 HIGH TICKET (Target ~8.00)');
-        ticketsHTML += `</div><p style="font-size:0.8em; color:#8b949e; text-align:center;">*Tickets are built progressively. The Safe ticket contains the absolute surest matches.</p>`;
+        ticketsHTML += `</div>`;
     }
 
     let finalOutput = `<div class="stats">Scanned ${lines.length} matches | ✅ ${gCount} Bets | ❌ ${bCount} Traps</div>`;
     finalOutput += ticketsHTML;
     if (gCount > 0) finalOutput += `<h2 class="section-title">✅ ALL GREENLIGHT MATCHES</h2>` + greenlightHTML;
     if (bCount > 0) finalOutput += `<h2 class="section-title">❌ BLACKLIST TRAPS</h2>` + blacklistHTML;
-    if (gCount === 0 && bCount === 0) finalOutput += '<div class="empty-msg">No valid matches found. Check file format.</div>';
+    if (gCount === 0 && bCount === 0) finalOutput += '<div class="empty-msg">No valid matches found in fixtures.txt.</div>';
 
     document.getElementById('output').innerHTML = finalOutput;
 }
