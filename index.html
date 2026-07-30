@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jay Soccer Scanner - Auto Ticket Generator</title>
+    <style>
+        body { font-family: 'Courier New', monospace; background-color: #0d1117; color: #c9d1d9; padding: 15px; margin: 0; }
+        h1 { color: #58a6ff; text-align: center; margin-bottom: 5px; font-size: 1.5em; }
+        .subtitle { text-align: center; color: #8b949e; margin-bottom: 20px; font-size: 0.85em; }
+        .container { max-width: 800px; margin: 0 auto; background: #161b22; padding: 15px; border-radius: 8px; border: 1px solid #30363d; }
+        
+        .drop-zone { border: 2px dashed #30363d; border-radius: 8px; padding: 30px 15px; text-align: center; cursor: pointer; transition: all 0.3s ease; margin-bottom: 15px; background: #0d1117; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: #58a6ff; background: #161b22; color: #58a6ff; }
+        .drop-zone p { margin: 5px 0; }
+        .file-info { color: #3fb950; font-weight: bold; margin-top: 10px; display: none; font-size: 0.9em;}
+
+        .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .control-group { flex: 1; min-width: 120px; }
+        label { display: block; margin-bottom: 3px; color: #8b949e; font-size: 0.8em; }
+        select, button { width: 100%; padding: 8px; background: #0d1117; color: #c9d1d9; border: 1px solid #30363d; border-radius: 4px; font-family: inherit; box-sizing: border-box; font-size: 0.9em;}
+        button { background: #238636; color: white; font-weight: bold; cursor: pointer; border: none; margin-top: 10px;}
+        button:hover { background: #2ea043; }
+        .btn-secondary { background: #30363d; }
+        .btn-secondary:hover { background: #484f58; }
+
+        /* TICKET STYLES */
+        .tickets-container { margin-bottom: 25px; }
+        .ticket { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; margin-bottom: 15px; }
+        .ticket-header { padding: 10px 15px; font-weight: bold; color: white; font-size: 1em; display: flex; justify-content: space-between; }
+        .ticket-2 .ticket-header { background: #238636; } 
+        .ticket-5 .ticket-header { background: #1f6feb; } 
+        .ticket-8 .ticket-header { background: #8957e5; } 
+        .ticket-body { padding: 10px 15px; font-size: 0.85em; }
+        .ticket-match { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed #30363d; }
+        .ticket-match:last-child { border-bottom: none; }
+        .ticket-match .team { color: #c9d1d9; flex: 1; }
+        .ticket-match .pred { color: #3fb950; font-weight: bold; text-align: right; margin-left: 10px; font-size: 0.9em;}
+        .ticket-footer { padding: 8px 15px; background: #161b22; font-weight: bold; text-align: right; color: #58a6ff; font-size: 0.9em; border-top: 1px solid #30363d;}
+        
+        .match-card { background: #0d1117; padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid #30363d; font-size: 0.9em;}
+        .green { border-left-color: #238636; }
+        .red { border-left-color: #da3633; }
+        .title { font-weight: bold; color: #58a6ff; margin-bottom: 3px; }
+        .odds { color: #8b949e; font-size: 0.85em; }
+        .bet { color: #3fb950; margin-top: 3px; }
+        .warn { color: #f85149; margin-top: 3px; }
+        .empty-msg { text-align: center; color: #8b949e; padding: 20px; }
+        .stats { text-align: center; color: #8b949e; margin-bottom: 15px; font-size: 0.85em;}
+        .section-title { border-bottom: 2px solid #30363d; padding-bottom: 5px; margin-top: 20px; color: #c9d1d9;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>⚽ JAY SOCCER AUTO-SCANNER</h1>
+    <p class="subtitle">Upload your fixtures file to instantly generate 2.00, 5.00 & 8.00 Odds Tickets</p>
+
+    <div class="drop-zone" id="dropZone">
+        <p style="font-size: 1.5em;">📂</p>
+        <p><strong>Tap to Upload or Drag & Drop File</strong></p>
+        <p style="font-size: 0.8em; color: #8b949e;">(.txt or .csv from Excel/Soccer24)</p>
+        <input type="file" id="fileInput" accept=".txt,.csv" style="display: none;">
+        <div class="file-info" id="fileInfo"></div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>Season Phase:</label>
+            <select id="seasonPhase">
+                <option value="start">Start (Aug - Nov)</option>
+                <option value="middle">Middle (Nov - Feb)</option>
+                <option value="end">End (Mar - May)</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>League Type:</label>
+            <select id="leagueType">
+                <option value="popular">Popular (EPL, La Liga)</option>
+                <option value="low_scoring">Low Scoring</option>
+                <option value="high_scoring">High Scoring</option>
+            </select>
+        </div>
+    </div>
+
+    <button class="btn-secondary" onclick="downloadTemplate()">📥 Download CSV Template</button>
+    <button class="btn-secondary" onclick="clearAll()">🗑️ Clear</button>
+
+    <div id="output" class="output"></div>
+</div>
+
+<script>
+// ==========================================
+// FILE HANDLING
+// ==========================================
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const fileInfo = document.getElementById('fileInfo');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault(); dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', (e) => { if (e.target.files.length > 0) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+    fileInfo.style.display = 'block';
+    fileInfo.textContent = `📄 Reading: ${file.name}...`;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        fileInfo.textContent = `✅ Loaded: ${file.name}`;
+        processFileData(e.target.result);
+    };
+    reader.readAsText(file);
+}
+
+function downloadTemplate() {
+    const csv = "Home Team,Away Team,Home Odd,Draw Odd,Away Odd\nArsenal,Chelsea,1.80,3.50,4.50\nBarcelona,Real Madrid,1.19,7.50,12.00";
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = window.URL.createObjectURL(blob); a.download = 'jay_template.csv'; a.click();
+}
+
+function clearAll() { document.getElementById('output').innerHTML = ''; fileInfo.style.display = 'none'; fileInput.value = ''; }
+
+// ==========================================
+// ESTIMATED ODDS CALCULATOR
+// ==========================================
+function getBetOdd(rec, hOdd, xOdd, aOdd) {
+    if (rec.includes("Straight Home Win")) return hOdd;
+    if (rec.includes("Straight Away Win")) return aOdd;
+    if (rec.includes("1X") && rec.includes("Under 4.5")) return Math.max(1.12, hOdd * 0.55);
+    if (rec.includes("1X") && rec.includes("Under 3.5")) return Math.max(1.15, hOdd * 0.50);
+    if (rec.includes("1X")) return Math.max(1.15, hOdd * 0.65);
+    if (rec.includes("X2") && rec.includes("Under 3.5")) return Math.max(1.15, aOdd * 0.55);
+    if (rec.includes("X2")) return Math.max(1.15, aOdd * 0.65);
+    if (rec.includes("Under 1.5 HT")) return 1.35;
+    if (rec.includes("Over 2.5 FT")) return 1.65;
+    if (rec.includes("Over 3.5 FT")) return 2.10;
+    if (rec.includes("BTTS")) return 1.70;
+    if (rec.includes("Under 3.5")) return 1.25;
+    if (rec.includes("Over 0.5 HT")) return 1.30;
+    if (rec.includes("Win & Over 2.5")) return (hOdd < aOdd ? hOdd : aOdd) * 1.60;
+    return 1.50; 
+}
+
+// ==========================================
+// SCANNER & TICKET GENERATOR
+// ==========================================
+function parseLine(line) {
+    let parts = line.split(',').map(p => p.trim());
+    if (parts.length < 5) parts = line.split(/\t+|\s{2,}/).map(p => p.trim()).filter(p => p !== '');
+    if (parts.length >= 5) {
+        const aOdd = parseFloat(parts[parts.length - 1]);
+        const xOdd = parseFloat(parts[parts.length - 2]);
+        const hOdd = parseFloat(parts[parts.length - 3]);
+        const away = parts[parts.length - 4];
+        const home = parts.slice(0, parts.length - 4).join(' ');
+        if (!isNaN(hOdd) && !isNaN(xOdd) && !isNaN(aOdd)) return { home, away, hOdd, xOdd, aOdd };
+    }
+    return null;
+}
+
+function scanMatch(home, away, hOdd, xOdd, aOdd, seasonPhase, leagueType) {
+    let recs = [], warns = [];
+    if (hOdd >= 1.24 && hOdd <= 1.26) { warns.push("BLACKLIST: 1.25 Home odd trap."); return { recs, warns }; }
+    if ((hOdd >= 1.13 && hOdd <= 1.15) || (aOdd >= 1.13 && aOdd <= 1.15)) recs.push("Under 1.5 Goals HT");
+    else if ((hOdd >= 1.18 && hOdd <= 1.20) || (aOdd >= 1.18 && aOdd <= 1.20)) {
+        if (seasonPhase === 'start') recs.push("Win & Over 2.5 FT"); else warns.push("AVOID: 1.19 risky.");
+    } else if ((hOdd >= 1.21 && hOdd <= 1.29) || (aOdd >= 1.21 && aOdd <= 1.29)) recs.push(hOdd < aOdd ? "Straight Home Win (1)" : "Straight Away Win (2)");
+    else if ((hOdd >= 1.30 && hOdd <= 1.39) || (aOdd >= 1.30 && aOdd <= 1.39)) recs.push(hOdd < aOdd ? "Straight Home Win (1)" : "Straight Away Win (2)");
+    else if (hOdd >= 1.40 && hOdd <= 1.44) recs.push(leagueType === 'low_scoring' ? "1X & Under 4.5 Goals" : "1X (Home/Draw)");
+    else if (hOdd >= 1.49 && hOdd <= 1.51) recs.push("Straight Home Win (1)");
+    else if (aOdd >= 1.52 && aOdd <= 1.54) recs.push("X2 & Under 3.5 FT");
+    else if ((hOdd >= 1.56 && hOdd <= 1.62) || (aOdd >= 1.56 && aOdd <= 1.62)) recs.push(hOdd < aOdd ? "Straight Home Win (1)" : "Straight Away Win (2)");
+    else if (hOdd >= 1.71 && hOdd <= 1.81) recs.push("Straight Home Win (1)");
+    else if (hOdd >= 1.89 && hOdd <= 2.11) recs.push("1X & Under 3.5 FT");
+    else if (xOdd >= 2.99 && xOdd <= 3.30) recs.push("Under 3.5 Goals");
+    else if (xOdd >= 3.38 && xOdd <= 3.40) recs.push("BTTS OR Over 2.5 FT");
+    else if (xOdd >= 3.50 && xOdd <= 3.75) {
+        if (seasonPhase === 'start' && leagueType === 'high_scoring') recs.push("OVER 0.5 HT & OVER 3.5 FT");
+        else warns.push("3.60 Draw only potent early season.");
+    }
+    return { recs, warns };
+}
+
+function generateTickets(matches) {
+    matches.sort((a, b) => a.betOdd - b.betOdd); // Safest first
+    let t2 = { m: [], o: 1.00, t: 2.00 };
+    let t5 = { m: [], o: 1.00, t: 5.00 };
+    let t8 = { m: [], o: 1.00, t: 8.00 };
+    for (let m of matches) {
+        if (t2.o < t2.t) { t2.m.push(m); t2.o *= m.betOdd; }
+        if (t5.o < t5.t) { t5.m.push(m); t5.o *= m.betOdd; }
+        if (t8.o < t8.t) { t8.m.push(m); t8.o *= m.betOdd; }
+    }
+    return { t2, t5, t8 };
+}
+
+function processFileData(text) {
+    const seasonPhase = document.getElementById('seasonPhase').value;
+    const leagueType = document.getElementById('leagueType').value;
+    const lines = text.split('\n').filter(line => line.trim() !== '' && !line.toLowerCase().includes('home team'));
+    
+    let allGreenlight = [];
+    let greenlightHTML = '', blacklistHTML = '';
+    let gCount = 0, bCount = 0;
+
+    lines.forEach(line => {
+        const p = parseLine(line);
+        if (!p) return;
+        const res = scanMatch(p.home, p.away, p.hOdd, p.xOdd, p.aOdd, seasonPhase, leagueType);
+        
+        if (res.recs.length > 0) {
+            gCount++;
+            const primaryRec = res.recs[0];
+            const betOdd = getBetOdd(primaryRec, p.hOdd, p.xOdd, p.aOdd);
+            allGreenlight.push({ ...p, rec: primaryRec, betOdd });
+            greenlightHTML += `<div class="match-card green"><div class="title">✅ ${p.home} vs ${p.away}</div><div class="odds">Raw: ${p.hOdd} | ${p.xOdd} | ${p.aOdd}</div><div class="bet">👉 ${primaryRec} (Est. Odd: ${betOdd.toFixed(2)})</div></div>`;
+        }
+        if (res.warns.length > 0) {
+            bCount++;
+            blacklistHTML += `<div class="match-card red"><div class="title">⚠️ ${p.home} vs ${p.away}</div><div class="odds">Raw: ${p.hOdd} | ${p.xOdd} | ${p.aOdd}</div><div class="warn">🚫 ${res.warns.join(' | ')}</div></div>`;
+        }
+    });
+
+    // Build Tickets HTML
+    let ticketsHTML = '';
+    if (allGreenlight.length > 0) {
+        const tickets = generateTickets(allGreenlight);
+        ticketsHTML = `<h2 class="section-title">🎟️ AUTO-GENERATED ACCUMULATOR TICKETS</h2><div class="tickets-container">`;
+        
+        const renderTicket = (t, cls, label) => {
+            if (t.m.length === 0) return '';
+            let body = t.m.map(m => `<div class="ticket-match"><span class="team">${m.home} vs ${m.away}</span><span class="pred">${m.rec}</span></div>`).join('');
+            return `<div class="ticket ${cls}"><div class="ticket-header"><span>${label}</span><span>${t.m.length} Games</span></div><div class="ticket-body">${body}</div><div class="ticket-footer">Total Odd: ${t.o.toFixed(2)} ${t.o < t.t ? '(Target: ' + t.t.toFixed(2) + ')' : ''}</div></div>`;
+        };
+
+        ticketsHTML += renderTicket(tickets.t2, 'ticket-2', '🟢 SAFE TICKET (Target ~2.00)');
+        ticketsHTML += renderTicket(tickets.t5, 'ticket-5', '🔵 MEDIUM TICKET (Target ~5.00)');
+        ticketsHTML += renderTicket(tickets.t8, 'ticket-8', '🟣 HIGH TICKET (Target ~8.00)');
+        ticketsHTML += `</div><p style="font-size:0.8em; color:#8b949e; text-align:center;">*Tickets are built progressively. The Safe ticket contains the absolute surest matches.</p>`;
+    }
+
+    let finalOutput = `<div class="stats">Scanned ${lines.length} matches | ✅ ${gCount} Bets | ❌ ${bCount} Traps</div>`;
+    finalOutput += ticketsHTML;
+    if (gCount > 0) finalOutput += `<h2 class="section-title">✅ ALL GREENLIGHT MATCHES</h2>` + greenlightHTML;
+    if (bCount > 0) finalOutput += `<h2 class="section-title">❌ BLACKLIST TRAPS</h2>` + blacklistHTML;
+    if (gCount === 0 && bCount === 0) finalOutput += '<div class="empty-msg">No valid matches found. Check file format.</div>';
+
+    document.getElementById('output').innerHTML = finalOutput;
+}
+</script>
+</body>
+</html>
